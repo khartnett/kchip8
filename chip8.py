@@ -6,6 +6,7 @@ speed = [2, 2]
 black = 0, 0, 0
 white = 255, 255, 255
 drawFlag = False
+runCycle = True
 opcode = 0
 memory = [0] * 4096
 stack = [0] * 16
@@ -14,8 +15,8 @@ V = [0] * 16 # Registers
 I = 0 # Index Register
 pc = 0 # Program Counter
 sp = 0 # stack pointer
-delay_timer = 0;
-sound_timer = 0;
+delay_timer = 0
+sound_timer = 0
 
 beepEffect = pygame.mixer.Sound('beep.wav')
 
@@ -65,7 +66,7 @@ def initialize():
 
     # Load fontset
     for i in range(0, 79):
-        memory[i] = chip8_fontset[i];
+        memory[i] = chip8_fontset[i]
 
     # Reset timers
     delay_timer = 0
@@ -81,7 +82,7 @@ def loadGame(gameFile):
     f.close()
 
 def emulateCycle():
-    global pc, opcode, I, sp, memory, stack, gfx, drawFlag, delay_timer, sound_timer
+    global pc, opcode, I, sp, memory, stack, gfx, drawFlag, delay_timer, sound_timer, runCycle
     # Fetch Opcode
     opcode = memory[pc] << 8 | memory[pc + 1]
     pc += 2
@@ -94,9 +95,7 @@ def emulateCycle():
     Y = opcode & 0x00F0 >> 4
     unknownOp = False
     # Execute Opcode
-    if decoded == 0xA000: # ANNN: Sets I to the address NNN
-        I = NNN
-    elif decoded == 0x0000:
+    if decoded == 0x0000:
         if NN == 0x00E0: # 0x00E0: Clears the screen
             gfx = [0] * (64 * 32)
             drawFlag = True
@@ -111,15 +110,61 @@ def emulateCycle():
         stack[sp] = pc
         sp += 1
         pc = NNN
-    elif decoded == 0x8000: # Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there isn't.
-        if N == 0x0004:
-            if (V[Y] > (0xFF - V[X])):
+    elif decoded == 0x3000: # 0x3XNN:	Skips the next instruction if VX equals NN.
+        if (V[X] == NN):
+            pc += 2
+    elif decoded == 0x4000: # 0x4XNN:	Skips the next instruction if VX doesn't equal NN.
+        if (V[X] != NN):
+            pc += 2
+    elif decoded == 0x5000: # 0x5XY0:	Skips the next instruction if VX equals VY.
+        if (V[X] == V[Y]):
+            pc += 2
+    elif decoded == 0x6000: # 0x6XNN:	Sets VX to NN.
+        V[X] = NN
+    elif decoded == 0x7000: # 0x7XNN:	Adds NN to VX. (Carry flag is not changed).
+        V[X] += NN
+        while (V[X] > 255):
+            V[X] -= 256
+    elif decoded == 0x8000:
+        if N == 0x0000: # 0x8XY0 Sets VX to the value of VY.
+            V[X] = V[Y]
+        elif N == 0x0001: # 0x8XY1 Sets VX to VX or VY. (Bitwise OR operation)
+            V[X] = V[X] | V[Y]
+        elif N == 0x0002: # 0x8XY2 Sets VX to VX and VY. (Bitwise AND operation)
+            V[X] = V[X] & V[Y]
+        elif N == 0x0003: # 0x8XY3 Sets VX to VX xor VY.
+            V[X] = V[X] ^ V[Y]
+        elif N == 0x0004: # 0x8XY4 Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there isn't.
+            V[X] += V[Y]
+            if (V[X] > 255):
+                V[X] -= 256
                 V[0xF] = 1 # carry
             else:
                 V[0xF] = 0
-            V[X] += V[Y]
+        elif N == 0x0005: # 0x8XY5 VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there isn't.
+            V[X] -= V[Y]
+            if (V[X] < 0):
+                V[X] += 256
+                V[0xF] = 0
+            else:
+                V[0xF] = 1 # borrow
+        elif N == 0x0006: # 0x8XY6 Stores the least significant bit of VX in VF and then shifts VX to the right by 1.
+            V[0xF] = V[X] & 1
+            V[X] >>= 1
+        elif N == 0x0007: # 0x8XY7 Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there isn't.
+            V[X] = V[Y] - V[X]
+            if (V[X] < 0):
+                V[X] += 256
+                V[0xF] = 0
+            else:
+                V[0xF] = 1 # borrow
+        elif N == 0x000E: # 0x8XYE Stores the most significant bit of VX in VF and then shifts VX to the left by 1.
+            V[0xF] = V[X] & 0x80
+            V[X] <<= 1
         else:
             unknownOp = True
+    elif decoded == 0xA000: # ANNN: Sets I to the address NNN
+        I = NNN
     elif decoded == 0xD000:
         screen_x = V[X]
         screen_y = V[Y]
@@ -133,10 +178,21 @@ def emulateCycle():
                     gfx[screen_x + xline + ((screen_y + yline) * 64)] ^= 1
         drawFlag = True
     elif decoded == 0xF000:
-        if NN == 0x0033: # Stores the Binary-coded decimal representation of VX at the addresses I, I plus 1, and I plus 2
-            memory[I]     = V[X] // 100;
-            memory[I + 1] = (V[X] // 10) % 10;
-            memory[I + 2] = (V[X] % 100) % 10;
+        if NN == 0x0007: # 0xFX07 Sets VX to the value of the delay timer.
+            V[X] = delay_timer
+        elif NN == 0x0015: # 0xFX15 Sets the delay timer to VX.
+            delay_timer = V[X]
+        elif NN == 0x0018: # 0xFX18 Sets the sound timer to VX.
+            sound_timer = V[X]
+        elif NN == 0x0029: # 0xFX29 Sets I to the location of the sprite for the character in VX. Characters 0-F (in hexadecimal) are represented by a 4x5 font.
+            I = V[X] * 5
+        elif NN == 0x0033: # Stores the Binary-coded decimal representation of VX at the addresses I, I plus 1, and I plus 2
+            memory[I]     = V[X] // 100
+            memory[I + 1] = (V[X] // 10) % 10
+            memory[I + 2] = (V[X] % 100) % 10
+        elif NN == 0x0065: # 0xFX65 Fills V0 to VX (including VX) with values from memory starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified
+            for v_index in range(0, X):
+                memory[I + v_index] = V[v_index]
         else:
             unknownOp = True
     else:
@@ -145,6 +201,7 @@ def emulateCycle():
 
     if unknownOp:
         print ('Unknown opcode: ' + hex(opcode))
+        runCycle = False
     else:
         print ('KNOWN opcode: ' + hex(opcode))
 
@@ -158,16 +215,25 @@ def emulateCycle():
         sound_timer -= 1
 
 def drawGraphics():
-    a = 0
+    global gfx, drawFlag, runCycle
+    screen.fill(black)
+    for pixelIndex, pixel in enumerate(gfx):
+        if pixel:
+            fillPixel(pixelIndex % 64, pixelIndex // 64, white)
+    pygame.display.flip()
+    # print (gfx)
+    # exit()
+    drawFlag = False
+    #runCycle = False
 
 def setKeys():
     a = 0
 
-screen.fill(black)
-fillPixel(0, 0, white)
-fillPixel(1, 1, white)
-fillPixel(63, 31, white)
-pygame.display.flip()
+# screen.fill(black)
+# fillPixel(0, 0, white)
+# fillPixel(1, 1, white)
+# fillPixel(63, 31, white)
+# pygame.display.flip()
 
 ball = pygame.image.load("intro_ball.gif")
 ballrect = ball.get_rect()
@@ -177,10 +243,11 @@ setupInput()
 initialize()
 loadGame('pong')
 while 1:
-    emulateCycle()
-    if (drawFlag) :
-        drawGraphics()
-    setKeys()
+    if (runCycle) :
+        emulateCycle()
+        if (drawFlag) :
+            drawGraphics()
+        setKeys()
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT: sys.exit()
@@ -196,12 +263,12 @@ while 1:
             elif event.key == pygame.K_UP:
                 speed[1] -= 1
 
-    ballrect = ballrect.move(speed)
-    if ballrect.left < 0 or ballrect.right > width:
-        speed[0] = -speed[0]
-    if ballrect.top < 0 or ballrect.bottom > height:
-        speed[1] = -speed[1]
+    # ballrect = ballrect.move(speed)
+    # if ballrect.left < 0 or ballrect.right > width:
+    #     speed[0] = -speed[0]
+    # if ballrect.top < 0 or ballrect.bottom > height:
+    #     speed[1] = -speed[1]
 
     # screen.fill(black)
-    screen.blit(ball, ballrect)
-    pygame.display.flip()
+    # screen.blit(ball, ballrect)
+    # pygame.display.flip()
