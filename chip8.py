@@ -8,6 +8,8 @@ white = 255, 255, 255
 drawFlag = False
 opcode = 0
 memory = [0] * 4096
+stack = [0] * 16
+gfx = [0] * (64 * 32)
 V = [0] * 16 # Registers
 I = 0 # Index Register
 pc = 0 # Program Counter
@@ -75,35 +77,78 @@ def loadGame(gameFile):
     gameBytes = list(f.read())
     for i, gameByte in enumerate(gameBytes) :
         memory[i + 512] = gameByte
-        print(str(i + 512) + ': ' + hex(gameByte))
-
+        #print(str(i + 512) + ': ' + hex(gameByte))
     f.close()
-    a = 0
 
 def emulateCycle():
-    global pc, opcode, I, sp, memory, delay_timer, sound_timer
+    global pc, opcode, I, sp, memory, stack, gfx, drawFlag, delay_timer, sound_timer
     # Fetch Opcode
     opcode = memory[pc] << 8 | memory[pc + 1]
+    pc += 2
     # Decode Opcode
     decoded = opcode & 0xF000
+    NNN = opcode & 0x0FFF
+    NN = opcode & 0x00FF
+    N = opcode & 0x000F
+    X = opcode & 0x0F00 >> 8
+    Y = opcode & 0x00F0 >> 4
+    unknownOp = False
     # Execute Opcode
     if decoded == 0xA000: # ANNN: Sets I to the address NNN
-        I = opcode & 0x0FFF
-        pc += 2
+        I = NNN
     elif decoded == 0x0000:
-        sub_decoded = opcode & 0x000F
-        if sub_decoded == 0x0000: # 0x00E0: Clears the screen
-            print('0x00E0: Clears the screen')
-        elif sub_decoded == 0x000E: # 0x00EE: Returns from subroutine
-            print('0x00E0: Clears the screen')
+        if NN == 0x00E0: # 0x00E0: Clears the screen
+            gfx = [0] * (64 * 32)
+            drawFlag = True
+        elif NN == 0x00EE: # 0x00EE: Returns from subroutine
+            sp -= 1
+            pc = stack[sp]
         else:
-            print ('Unknown opcode:[0x0000] ' + hex(opcode))
+            unknownOp = True
+    elif decoded == 0x1000: # 0x1NNN:	Jumps to address NNN.
+        pc = NNN
     elif decoded == 0x2000: # 0x2NNN:	Calls subroutine at NNN.
         stack[sp] = pc
         sp += 1
-        pc = opcode & 0x0FFF
+        pc = NNN
+    elif decoded == 0x8000: # Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there isn't.
+        if N == 0x0004:
+            if (V[Y] > (0xFF - V[X])):
+                V[0xF] = 1 # carry
+            else:
+                V[0xF] = 0
+            V[X] += V[Y]
+        else:
+            unknownOp = True
+    elif decoded == 0xD000:
+        screen_x = V[X]
+        screen_y = V[Y]
+        V[0xF] = 0
+        for yline in range(0, N - 1):
+            pixel = memory[I + yline]
+            for xline in range(0, 7):
+                if ((pixel & (0x80 >> xline)) != 0):
+                    if(gfx[(screen_x + xline + ((screen_y + yline) * 64))] == 1):
+                        V[0xF] = 1
+                    gfx[screen_x + xline + ((screen_y + yline) * 64)] ^= 1
+        drawFlag = True
+    elif decoded == 0xF000:
+        if NN == 0x0033: # Stores the Binary-coded decimal representation of VX at the addresses I, I plus 1, and I plus 2
+            memory[I]     = V[X] // 100;
+            memory[I + 1] = (V[X] // 10) % 10;
+            memory[I + 2] = (V[X] % 100) % 10;
+        else:
+            unknownOp = True
     else:
+        unknownOp = True
+
+
+    if unknownOp:
         print ('Unknown opcode: ' + hex(opcode))
+    else:
+        print ('KNOWN opcode: ' + hex(opcode))
+
+
     # Update timers
     if delay_timer > 0:
         delay_timer -= 1
@@ -132,7 +177,7 @@ setupInput()
 initialize()
 loadGame('pong')
 while 1:
-    #emulateCycle()
+    emulateCycle()
     if (drawFlag) :
         drawGraphics()
     setKeys()
