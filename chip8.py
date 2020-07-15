@@ -1,4 +1,4 @@
-import sys, pygame
+import sys, pygame, random
 pygame.init()
 
 size = width, height = 640, 320
@@ -10,6 +10,9 @@ runCycle = True
 opcode = 0
 memory = [0] * 4096
 stack = [0] * 16
+keysPressed = [0] * 16
+waitForKey = False
+waitForKeyV = 0
 gfx = [0] * (64 * 32)
 V = [0] * 16 # Registers
 I = 0 # Index Register
@@ -19,6 +22,13 @@ delay_timer = 0
 sound_timer = 0
 
 beepEffect = pygame.mixer.Sound('beep.wav')
+
+keyMap = {
+    pygame.K_1: 0x01, pygame.K_2: 0x02, pygame.K_3: 0x03, pygame.K_4: 0x0C,
+    pygame.K_q: 0x04, pygame.K_w: 0x05, pygame.K_e: 0x06, pygame.K_r: 0x0D,
+    pygame.K_a: 0x07, pygame.K_s: 0x08, pygame.K_d: 0x09, pygame.K_f: 0x0E,
+    pygame.K_z: 0x0A, pygame.K_x: 0x00, pygame.K_c: 0x0B, pygame.K_v: 0x0F,
+}
 
 chip8_fontset = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, # 0
@@ -83,10 +93,10 @@ def loadGame(gameFile):
     f.close()
 
 def emulateCycle():
-    global pc, opcode, I, V, sp, memory, stack, gfx, drawFlag, delay_timer, sound_timer, runCycle
+    global pc, opcode, I, V, sp, memory, stack, gfx, drawFlag, delay_timer, sound_timer, runCycle, waitForKey, waitForKeyV
     # Fetch Opcode
     opcode = memory[pc] << 8 | memory[pc + 1]
-    print('pc: ' + hex(pc))
+    # print('pc: ' + hex(pc))
     pc += 2
     # Decode Opcode
     decoded = opcode & 0xF000
@@ -187,6 +197,12 @@ def emulateCycle():
     elif decoded == 0xA000: # ANNN: Sets I to the address NNN
         opDesc = 'Sets I to the address NNN'
         I = NNN
+    elif decoded == 0xB000: # BNNN: Jumps to the address NNN plus V0
+        opDesc = 'Jumps to the address NNN plus V0'
+        I = NNN + V[0]
+    elif decoded == 0xC000: # CXNN: Sets VX to the result of a bitwise and operation on a random number (Typically: 0 to 255) and NN
+        opDesc = 'Sets VX to the result of a bitwise and operation on a random number'
+        V[X] = random.randint(0, 255) & NN
     elif decoded == 0xD000: # Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels
         opDesc = 'Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels'
         screen_x = V[X]
@@ -195,17 +211,32 @@ def emulateCycle():
         for yline in range(0, N):
             pixel = memory[I + yline]
             for xline in range(0, 8):
-                print('xline: ' + str(xline))
                 if ((pixel & (0x80 >> xline)) != 0):
                     gfx_index = (screen_x + xline + ((screen_y + yline) * 64)) % (64 * 32)
                     if(gfx[gfx_index] == 1):
                         V[0xF] = 1
                     gfx[gfx_index] ^= 1
         drawFlag = True
+    elif decoded == 0xE000:
+        if NN == 0x009E: # 0xEX9E Skips the next instruction if the key stored in VX is pressed.
+            opDesc = 'Skips the next instruction if the key stored in VX is pressed'
+            if keysPressed[V[X]] == 1:
+                pc = pc + 2
+        elif NN == 0x00A1: # 0xEXA1 Skips the next instruction if the key stored in VX isn't pressed.
+            opDesc = "Skips the next instruction if the key stored in VX isn't pressed"
+            if keysPressed[V[X]] == 0:
+                pc = pc + 2
+        else:
+            unknownOp = True
     elif decoded == 0xF000:
         if NN == 0x0007: # 0xFX07 Sets VX to the value of the delay timer.
             opDesc = 'Sets VX to the value of the delay timer'
             V[X] = delay_timer
+        elif NN == 0x000A: # 0xFX0A A key press is awaited, and then stored in VX. (Blocking)
+            opDesc = 'A key press is awaited, and then stored in VX'
+            waitForKeyV = X
+            runCycle = False
+            waitForKey = True
         elif NN == 0x0015: # 0xFX15 Sets the delay timer to VX.
             opDesc = 'Sets the delay timer to VX'
             delay_timer = V[X]
@@ -223,6 +254,10 @@ def emulateCycle():
             memory[I]     = V[X] // 100
             memory[I + 1] = (V[X] // 10) % 10
             memory[I + 2] = (V[X] % 100) % 10
+        elif NN == 0x0055: # 0xFX55 Stores V0 to VX (including VX) in memory starting at address I
+            opDesc = 'Stores V0 to VX (including VX) in memory starting at address I'
+            for v_index in range(0, X + 1):
+                V[v_index] = memory[I + v_index]
         elif NN == 0x0065: # 0xFX65 Fills V0 to VX (including VX) with values from memory starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodifie
             opDesc = 'Fills V0 to VX (including VX) with values from memory starting at address I'
             for v_index in range(0, X + 1):
@@ -238,9 +273,9 @@ def emulateCycle():
         runCycle = False
     else:
         print ('opcode: ' + hex(opcode) + ' : ' + opDesc)
-        print ('V')
-        printIndexList(V)
-        print ('I ' + hex(I))
+        # print ('V')
+        # printIndexList(V)
+        # print ('I ' + hex(I))
 
     if opcode == 0x1228:
         runCycle = False
@@ -265,7 +300,21 @@ def drawGraphics():
     #runCycle = False
 
 def setKeys():
-    a = 0
+    global keysPressed, runCycle, waitForKey, waitForKeyV, V
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT: sys.exit()
+        if event.type == pygame.KEYDOWN: # or event.type == pygame.KEYUP:
+            if event.key in keyMap:
+                keysPressed[keyMap[event.key]] = 1
+                if waitForKey == True:
+                    V[waitForKeyV] = keyMap[event.key]
+                    runCycle = True
+                    waitForKey = False
+            print(event)
+        if event.type == pygame.KEYUP:
+            if event.key in keyMap:
+                keysPressed[keyMap[event.key]] = 0
+            print(event)
 
 def printIndexList(theList, perLine = 10):
     listToPrint = []
@@ -287,8 +336,9 @@ ballrect = ball.get_rect()
 
 setupGraphics()
 setupInput()
+random.seed()
 initialize()
-loadGame('pong') #si') #'pong')
+loadGame('kt') #si') #'pong') ll
 printIndexList(memory)
 #exit()
 while 1:
@@ -296,21 +346,21 @@ while 1:
         emulateCycle()
         if (drawFlag) :
             drawGraphics()
-        setKeys()
+    setKeys()
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT: sys.exit()
-        if event.type == pygame.KEYDOWN: # or event.type == pygame.KEYUP:
-            print(event)
-            beepEffect.play()
-            if event.key == pygame.K_RIGHT:
-                speed[0] += 1
-            elif event.key == pygame.K_LEFT:
-                speed[0] -= 1
-            elif event.key == pygame.K_DOWN:
-                speed[1] += 1
-            elif event.key == pygame.K_UP:
-                speed[1] -= 1
+    # for event in pygame.event.get():
+    #     if event.type == pygame.QUIT: sys.exit()
+    #     if event.type == pygame.KEYDOWN: # or event.type == pygame.KEYUP:
+    #         print(event)
+    #         beepEffect.play()
+    #         if event.key == pygame.K_RIGHT:
+    #             speed[0] += 1
+    #         elif event.key == pygame.K_LEFT:
+    #             speed[0] -= 1
+    #         elif event.key == pygame.K_DOWN:
+    #             speed[1] += 1
+    #         elif event.key == pygame.K_UP:
+    #             speed[1] -= 1
 
     # ballrect = ballrect.move(speed)
     # if ballrect.left < 0 or ballrect.right > width:
