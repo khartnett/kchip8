@@ -99,7 +99,6 @@ def emulateCycle():
     global pc, opcode, I, V, sp, memory, stack, gfx, drawFlag, delay_timer, sound_timer, runCycle, waitForKey, waitForKeyV
     # Fetch Opcode
     opcode = memory[pc] << 8 | memory[pc + 1]
-    # print('pc: ' + hex(pc))
     pc += 2
     # Decode Opcode
     decoded = opcode & 0xF000
@@ -109,62 +108,47 @@ def emulateCycle():
     X = (opcode & 0x0F00) >> 8
     Y = (opcode & 0x00F0) >> 4
     unknownOp = False
-    opDesc = ''
     # Execute Opcode
     if decoded == 0x0000:
         if NN == 0x00E0: # 0x00E0: Clears the screen
-            opDesc = 'Clears the screen'
             gfx = [0] * (64 * 32)
             drawFlag = True
         elif NN == 0x00EE: # 0x00EE: Returns from subroutine
-            opDesc = 'Returns from subroutine'
             sp -= 1
             pc = stack[sp]
         else:
             unknownOp = True
     elif decoded == 0x1000: # 0x1NNN:	Jumps to address NNN.
-        opDesc = 'Jumps to address NNN'
         pc = NNN
     elif decoded == 0x2000: # 0x2NNN:	Calls subroutine at NNN.
-        opDesc = 'Calls subroutine at NNN'
         stack[sp] = pc
         sp += 1
         pc = NNN
     elif decoded == 0x3000: # 0x3XNN:	Skips the next instruction if VX equals NN.
-        opDesc = 'Skips the next instruction if VX equals NN'
         if (V[X] == NN):
             pc += 2
     elif decoded == 0x4000: # 0x4XNN:	Skips the next instruction if VX doesn't equal NN.
-        opDesc = "Skips the next instruction if VX doesn't equal NN"
         if (V[X] != NN):
             pc += 2
     elif decoded == 0x5000: # 0x5XY0:	Skips the next instruction if VX equals VY.
-        opDesc = 'Skips the next instruction if VX equals VY'
         if (V[X] == V[Y]):
             pc += 2
     elif decoded == 0x6000: # 0x6XNN:	Sets VX to NN.
-        opDesc = 'Sets VX to NN'
         V[X] = NN
     elif decoded == 0x7000: # 0x7XNN:	Adds NN to VX. (Carry flag is not changed).
-        opDesc = 'Adds NN to VX. (Carry flag is not changed)'
         V[X] += NN
         while (V[X] > 255):
             V[X] -= 256
     elif decoded == 0x8000:
         if N == 0x0000: # 0x8XY0 Sets VX to the value of VY.
-            opDesc = 'Sets VX to the value of VY'
             V[X] = V[Y]
         elif N == 0x0001: # 0x8XY1 Sets VX to VX or VY. (Bitwise OR operation)
-            opDesc = 'Sets VX to VX or VY. (Bitwise OR operation)'
             V[X] = V[X] | V[Y]
         elif N == 0x0002: # 0x8XY2 Sets VX to VX and VY. (Bitwise AND operation)
-            opDesc = 'Sets VX to VX and VY. (Bitwise AND operation)'
             V[X] = V[X] & V[Y]
         elif N == 0x0003: # 0x8XY3 Sets VX to VX xor VY.
-            opDesc = 'Sets VX to VX xor VY'
             V[X] = V[X] ^ V[Y]
         elif N == 0x0004: # 0x8XY4 Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there isn't.
-            opDesc = "Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there isn't"
             V[X] += V[Y]
             if (V[X] > 255):
                 V[X] -= 256
@@ -172,7 +156,6 @@ def emulateCycle():
             else:
                 V[0xF] = 0
         elif N == 0x0005: # 0x8XY5 VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there isn't.
-            opDesc = "VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there isn't"
             V[X] -= V[Y]
             if (V[X] < 0):
                 V[X] += 256
@@ -180,11 +163,9 @@ def emulateCycle():
             else:
                 V[0xF] = 1 # borrow
         elif N == 0x0006: # 0x8XY6 Stores the least significant bit of VX in VF and then shifts VX to the right by 1.
-            opDesc = 'Stores the least significant bit of VX in VF and then shifts VX to the right by 1'
             V[0xF] = V[X] & 1
             V[X] >>= 1
         elif N == 0x0007: # 0x8XY7 Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there isn't.
-            opDesc = "Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there isn't"
             V[X] = V[Y] - V[X]
             if (V[X] < 0):
                 V[X] += 256
@@ -192,26 +173,20 @@ def emulateCycle():
             else:
                 V[0xF] = 1 # borrow
         elif N == 0x000E: # 0x8XYE Stores the most significant bit of VX in VF and then shifts VX to the left by 1.
-            opDesc = 'Stores the most significant bit of VX in VF and then shifts VX to the left by 1'
             V[0xF] = V[X] & 0x80
             V[X] <<= 1
         else:
             unknownOp = True
     elif decoded == 0x9000: # 0x9XY0:	Skips the next instruction if VX doesn't equal VY.
-        opDesc = "Skips the next instruction if VX doesn't equal VY"
         if (V[X] != V[Y]):
             pc += 2
     elif decoded == 0xA000: # ANNN: Sets I to the address NNN
-        opDesc = 'Sets I to the address NNN'
         I = NNN
     elif decoded == 0xB000: # BNNN: Jumps to the address NNN plus V0
-        opDesc = 'Jumps to the address NNN plus V0'
         I = NNN + V[0]
     elif decoded == 0xC000: # CXNN: Sets VX to the result of a bitwise and operation on a random number (Typically: 0 to 255) and NN
-        opDesc = 'Sets VX to the result of a bitwise and operation on a random number'
         V[X] = random.randint(0, 255) & NN
     elif decoded == 0xD000: # Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels
-        opDesc = 'Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels'
         screen_x = V[X]
         screen_y = V[Y]
         V[0xF] = 0
@@ -226,47 +201,36 @@ def emulateCycle():
         drawFlag = True
     elif decoded == 0xE000:
         if NN == 0x009E: # 0xEX9E Skips the next instruction if the key stored in VX is pressed.
-            opDesc = 'Skips the next instruction if the key stored in VX is pressed'
             if keysPressed[V[X]] == 1:
                 pc = pc + 2
         elif NN == 0x00A1: # 0xEXA1 Skips the next instruction if the key stored in VX isn't pressed.
-            opDesc = "Skips the next instruction if the key stored in VX isn't pressed"
             if keysPressed[V[X]] == 0:
                 pc = pc + 2
         else:
             unknownOp = True
     elif decoded == 0xF000:
         if NN == 0x0007: # 0xFX07 Sets VX to the value of the delay timer.
-            opDesc = 'Sets VX to the value of the delay timer'
             V[X] = delay_timer
         elif NN == 0x000A: # 0xFX0A A key press is awaited, and then stored in VX. (Blocking)
-            opDesc = 'A key press is awaited, and then stored in VX'
             waitForKeyV = X
             runCycle = False
             waitForKey = True
         elif NN == 0x0015: # 0xFX15 Sets the delay timer to VX.
-            opDesc = 'Sets the delay timer to VX'
             delay_timer = V[X]
         elif NN == 0x0018: # 0xFX18 Sets the sound timer to VX.
-            opDesc = 'Sets the sound timer to VX'
             sound_timer = V[X]
         elif NN == 0x001E: # 0xFX1E Adds VX to I. VF is not affected.
-            opDesc = 'Adds VX to I. VF is not affected'
             I += V[X]
         elif NN == 0x0029: # 0xFX29 Sets I to the location of the sprite for the character in VX. Characters 0-F (in hexadecimal) are represented by a 4x5 font.
-            opDesc = 'Sets I to the location of the sprite for the character in VX. Characters 0-F'
             I = V[X] * 5
         elif NN == 0x0033: # Stores the Binary-coded decimal representation of VX at the addresses I, I plus 1, and I plus 2
-            opDesc = 'Stores the Binary-coded decimal representation of VX at the addresses I, I plus 1, and I plus 2'
             memory[I]     = V[X] // 100
             memory[I + 1] = (V[X] // 10) % 10
             memory[I + 2] = (V[X] % 100) % 10
         elif NN == 0x0055: # 0xFX55 Stores V0 to VX (including VX) in memory starting at address I
-            opDesc = 'Stores V0 to VX (including VX) in memory starting at address I'
             for v_index in range(0, X + 1):
                 V[v_index] = memory[I + v_index]
         elif NN == 0x0065: # 0xFX65 Fills V0 to VX (including VX) with values from memory starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodifie
-            opDesc = 'Fills V0 to VX (including VX) with values from memory starting at address I'
             for v_index in range(0, X + 1):
                 memory[I + v_index] = V[v_index]
         else:
@@ -278,14 +242,9 @@ def emulateCycle():
     if unknownOp:
         print ('Unknown opcode: ' + hex(opcode))
         runCycle = False
-    else:
-        print ('opcode: ' + hex(opcode) + ' : ' + opDesc)
-        # print ('V')
-        # printIndexList(V)
-        # print ('I ' + hex(I))
 
-    if opcode == 0x1228:
-        runCycle = False
+    #if opcode == 0x1228:  # i forgot why I did this
+    #    runCycle = False
     # Update timers
     if delay_timer > 0:
         delay_timer -= 1
@@ -303,94 +262,80 @@ def getOpcodeDesc(opcode):
     N = opcode & 0x000F
     X = (opcode & 0x0F00) >> 8
     Y = (opcode & 0x00F0) >> 4
-    unknownOp = False
-    opDesc = ''
     # Execute Opcode
     if decoded == 0x0000:
         if NN == 0x00E0: # 0x00E0: Clears the screen
-            opDesc = '0x00E0 Clears the screen'
+            return '0x00E0 Clears the screen'
         elif NN == 0x00EE: # 0x00EE: Returns from subroutine
-            opDesc = '0x00EE Returns from subroutine'
-        else:
-            unknownOp = True
+            return '0x00EE Returns from subroutine'
     elif decoded == 0x1000: # 0x1NNN:	Jumps to address NNN.
-        opDesc = '0x1NNN Jumps to address NNN'
+        return '0x1NNN Jumps to address NNN'
     elif decoded == 0x2000: # 0x2NNN:	Calls subroutine at NNN.
-        opDesc = '0x2NNN Calls subroutine at NNN'
+        return '0x2NNN Calls subroutine at NNN'
     elif decoded == 0x3000: # 0x3XNN:	Skips the next instruction if VX equals NN.
-        opDesc = '0x3XNN Skips the next instruction if VX equals NN'
+        return '0x3XNN Skips the next instruction if VX equals NN'
     elif decoded == 0x4000: # 0x4XNN:	Skips the next instruction if VX doesn't equal NN.
-        opDesc = "0x4XNN Skips the next instruction if VX doesn't equal NN"
+        return "0x4XNN Skips the next instruction if VX doesn't equal NN"
     elif decoded == 0x5000: # 0x5XY0:	Skips the next instruction if VX equals VY.
-        opDesc = '0x5XY0 Skips the next instruction if VX equals VY'
+        return '0x5XY0 Skips the next instruction if VX equals VY'
     elif decoded == 0x6000: # 0x6XNN:	Sets VX to NN.
-        opDesc = '0x6XNN Sets VX to NN'
+        return '0x6XNN Sets VX to NN'
     elif decoded == 0x7000: # 0x7XNN:	Adds NN to VX. (Carry flag is not changed).
-        opDesc = '0x7XNN Adds NN to VX. (Carry flag is not changed)'
+        return '0x7XNN Adds NN to VX. (Carry flag is not changed)'
     elif decoded == 0x8000:
         if N == 0x0000: # 0x8XY0 Sets VX to the value of VY.
-            opDesc = 'Sets VX to the value of VY'
+            return 'Sets VX to the value of VY'
         elif N == 0x0001: # 0x8XY1 Sets VX to VX or VY. (Bitwise OR operation)
-            opDesc = 'Sets VX to VX or VY. (Bitwise OR operation)'
+            return 'Sets VX to VX or VY. (Bitwise OR operation)'
         elif N == 0x0002: # 0x8XY2 Sets VX to VX and VY. (Bitwise AND operation)
-            opDesc = 'Sets VX to VX and VY. (Bitwise AND operation)'
+            return 'Sets VX to VX and VY. (Bitwise AND operation)'
         elif N == 0x0003: # 0x8XY3 Sets VX to VX xor VY.
-            opDesc = 'Sets VX to VX xor VY'
+            return 'Sets VX to VX xor VY'
         elif N == 0x0004: # 0x8XY4 Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there isn't.
-            opDesc = "Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there isn't"
+            return "Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there isn't"
         elif N == 0x0005: # 0x8XY5 VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there isn't.
-            opDesc = "VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there isn't"
+            return "VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there isn't"
         elif N == 0x0006: # 0x8XY6 Stores the least significant bit of VX in VF and then shifts VX to the right by 1.
-            opDesc = 'Stores the least significant bit of VX in VF and then shifts VX to the right by 1'
+            return 'Stores the least significant bit of VX in VF and then shifts VX to the right by 1'
         elif N == 0x0007: # 0x8XY7 Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there isn't.
-            opDesc = "Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there isn't"
+            return "Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there isn't"
         elif N == 0x000E: # 0x8XYE Stores the most significant bit of VX in VF and then shifts VX to the left by 1.
-            opDesc = 'Stores the most significant bit of VX in VF and then shifts VX to the left by 1'
-        else:
-            unknownOp = True
+            return 'Stores the most significant bit of VX in VF and then shifts VX to the left by 1'
     elif decoded == 0x9000: # 0x9XY0:	Skips the next instruction if VX doesn't equal VY.
-        opDesc = "0x9XY0 Skips the next instruction if VX doesn't equal VY"
+        return "0x9XY0 Skips the next instruction if VX doesn't equal VY"
     elif decoded == 0xA000: # 0xANNN: Sets I to the address NNN
-        opDesc = '0xANNN Sets I to the address NNN'
+        return '0xANNN Sets I to the address NNN'
     elif decoded == 0xB000: # 0xBNNN: Jumps to the address NNN plus V0
-        opDesc = '0xBNNN Jumps to the address NNN plus V0'
+        return '0xBNNN Jumps to the address NNN plus V0'
     elif decoded == 0xC000: # 0xCXNN: Sets VX to the result of a bitwise and operation on a random number (Typically: 0 to 255) and NN
-        opDesc = '0xCXNN Sets VX to the result of a bitwise and operation on a random number'
+        return '0xCXNN Sets VX to the result of a bitwise and operation on a random number'
     elif decoded == 0xD000: # 0xDXYN Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels
-        opDesc = '0xDXYN Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels'
+        return '0xDXYN Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels'
     elif decoded == 0xE000:
         if NN == 0x009E: # 0xEX9E Skips the next instruction if the key stored in VX is pressed.
-            opDesc = '0xEX9E Skips the next instruction if the key stored in VX is pressed'
+            return '0xEX9E Skips the next instruction if the key stored in VX is pressed'
         elif NN == 0x00A1: # 0xEXA1 Skips the next instruction if the key stored in VX isn't pressed.
-            opDesc = "0xEXA1 Skips the next instruction if the key stored in VX isn't pressed"
-        else:
-            unknownOp = True
+            return "0xEXA1 Skips the next instruction if the key stored in VX isn't pressed"
     elif decoded == 0xF000:
         if NN == 0x0007: # 0xFX07 Sets VX to the value of the delay timer.
-            opDesc = '0xFX07 Sets VX to the value of the delay timer'
+            return '0xFX07 Sets VX to the value of the delay timer'
         elif NN == 0x000A: # 0xFX0A A key press is awaited, and then stored in VX. (Blocking)
-            opDesc = '0xFX0A A key press is awaited, and then stored in VX'
+            return '0xFX0A A key press is awaited, and then stored in VX'
         elif NN == 0x0015: # 0xFX15 Sets the delay timer to VX.
-            opDesc = '0xFX15 Sets the delay timer to VX'
+            return '0xFX15 Sets the delay timer to VX'
         elif NN == 0x0018: # 0xFX18 Sets the sound timer to VX.
-            opDesc = '0xFX18 Sets the sound timer to VX'
+            return '0xFX18 Sets the sound timer to VX'
         elif NN == 0x001E: # 0xFX1E Adds VX to I. VF is not affected.
-            opDesc = '0xFX1E Adds VX to I. VF is not affected'
+            return '0xFX1E Adds VX to I. VF is not affected'
         elif NN == 0x0029: # 0xFX29 Sets I to the location of the sprite for the character in VX. Characters 0-F (in hexadecimal) are represented by a 4x5 font.
-            opDesc = '0xFX29 Sets I to the location of the sprite for the character in VX. Characters 0-F'
+            return '0xFX29 Sets I to the location of the sprite for the character in VX. Characters 0-F'
         elif NN == 0x0033: # 0xFX33 Stores the Binary-coded decimal representation of VX at the addresses I, I plus 1, and I plus 2
-            opDesc = '0xFX33 Stores the Binary-coded decimal representation of VX at the addresses I, I plus 1, and I plus 2'
+            return '0xFX33 Stores the Binary-coded decimal representation of VX at the addresses I, I plus 1, and I plus 2'
         elif NN == 0x0055: # 0xFX55 Stores V0 to VX (including VX) in memory starting at address I
-            opDesc = '0xFX55 Stores V0 to VX (including VX) in memory starting at address I'
+            return '0xFX55 Stores V0 to VX (including VX) in memory starting at address I'
         elif NN == 0x0065: # 0xFX65 Fills V0 to VX (including VX) with values from memory starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodifie
-            opDesc = '0xFX65 Fills V0 to VX (including VX) with values from memory starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified'
-        else:
-            unknownOp = True
-    else:
-        unknownOp = True
-    if unknownOp:
-        return ('Unknown opcode: ' + hex(opcode))
-    return opDesc
+            return '0xFX65 Fills V0 to VX (including VX) with values from memory starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified'
+    return ('Unknown opcode: ' + hex(opcode))
 
 
 def drawGraphics():
