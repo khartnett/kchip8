@@ -6,7 +6,7 @@ speed = [2, 2]
 black = 0, 0, 0
 white = 255, 255, 255
 drawFlag = False
-runCycle = True
+runCycle = False
 stepCycle = False
 opcode = 0
 memory = [0] * 4096
@@ -284,23 +284,23 @@ def getOpcodeDesc(opcode):
         return '0x7XNN Adds NN to VX. (Carry flag is not changed)'
     elif decoded == 0x8000:
         if N == 0x0000: # 0x8XY0 Sets VX to the value of VY.
-            return 'Sets VX to the value of VY'
+            return '0x8XY0 Sets VX to the value of VY'
         elif N == 0x0001: # 0x8XY1 Sets VX to VX or VY. (Bitwise OR operation)
-            return 'Sets VX to VX or VY. (Bitwise OR operation)'
+            return '0x8XY1 Sets VX to VX or VY. (Bitwise OR operation)'
         elif N == 0x0002: # 0x8XY2 Sets VX to VX and VY. (Bitwise AND operation)
-            return 'Sets VX to VX and VY. (Bitwise AND operation)'
+            return '0x8XY2 Sets VX to VX and VY. (Bitwise AND operation)'
         elif N == 0x0003: # 0x8XY3 Sets VX to VX xor VY.
-            return 'Sets VX to VX xor VY'
+            return '0x8XY3 Sets VX to VX xor VY'
         elif N == 0x0004: # 0x8XY4 Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there isn't.
-            return "Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there isn't"
+            return "0x8XY4 Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there isn't"
         elif N == 0x0005: # 0x8XY5 VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there isn't.
-            return "VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there isn't"
+            return "0x8XY5 VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there isn't"
         elif N == 0x0006: # 0x8XY6 Stores the least significant bit of VX in VF and then shifts VX to the right by 1.
-            return 'Stores the least significant bit of VX in VF and then shifts VX to the right by 1'
+            return '0x8XY6 Stores the least significant bit of VX in VF and then shifts VX to the right by 1'
         elif N == 0x0007: # 0x8XY7 Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there isn't.
-            return "Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there isn't"
+            return "0x8XY7 Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there isn't"
         elif N == 0x000E: # 0x8XYE Stores the most significant bit of VX in VF and then shifts VX to the left by 1.
-            return 'Stores the most significant bit of VX in VF and then shifts VX to the left by 1'
+            return '0x8XYE Stores the most significant bit of VX in VF and then shifts VX to the left by 1'
     elif decoded == 0x9000: # 0x9XY0:	Skips the next instruction if VX doesn't equal VY.
         return "0x9XY0 Skips the next instruction if VX doesn't equal VY"
     elif decoded == 0xA000: # 0xANNN: Sets I to the address NNN
@@ -362,11 +362,18 @@ def setKeys():
                 runCycle = not runCycle
             if event.key == pygame.K_LEFTBRACKET:
                 stepCycle = True
+            if event.key == pygame.K_o:
+                opcodePrint = memory[pc] << 8 | memory[pc + 1]
+                print('pc:' + hex(pc) + ' op:' + hex(opcodePrint) + ' desc:' + getOpcodeDesc(opcodePrint))
+            if event.key == pygame.K_i:
+                printInfo()
+            if event.key == pygame.K_m:
+                printMemory()
         if event.type == pygame.KEYUP:
             if event.key in keyMap:
                 keysPressed[keyMap[event.key]] = 0
 
-def printIndexList(theList, perLine = 10):
+def printIndexList(theList, perLine = 8):
     listToPrint = []
     for lindex, litem in enumerate(theList):
         listToPrint.append(hex(lindex) + ' => ' + hex(litem))
@@ -376,18 +383,32 @@ def printIndexList(theList, perLine = 10):
     if (len(listToPrint) >= 0):
         print(', '.join(listToPrint))
 
+def printInfo():
+    print ('stack: ')
+    printIndexList(stack)
+    print ('V: ')
+    printIndexList(V)
+    print ('I: ' + hex(I) + ' pc: ' + hex(pc) + ' sp: ' + hex(sp))
+
+def printMemory():
+    print ('memory: ')
+    printIndexList(memory)
+
 random.seed()
 initialize()
 gameFileName = 'bmp'
 if (len(sys.argv) > 1):
     gameFileName = sys.argv[1]
 loadGame(gameFileName) #si') #'pong') ll kt
-printIndexList(memory)
+#printIndexList(memory)
 #exit()
 while 1:
     if (runCycle or stepCycle) :
-        stepCycle = False
         emulateCycle()
+        if (stepCycle) :
+            stepCycle = False
+            opcodePrint = memory[pc] << 8 | memory[pc + 1]
+            print('-step- pc:' + hex(pc) + ' op:' + hex(opcodePrint) + ' desc:' + getOpcodeDesc(opcodePrint))
         if (drawFlag) :
             drawGraphics()
     setKeys()
