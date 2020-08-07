@@ -14,6 +14,7 @@ stack = [0] * 16
 keysPressed = [0] * 16
 waitForKey = False
 waitForKeyV = 0
+pcBreakpoint = 0x2d6 #0x000 #0x230
 gfx = [0] * (64 * 32)
 V = [0] * 16 # Registers
 I = 0 # Index Register
@@ -243,8 +244,6 @@ def emulateCycle():
         print ('Unknown opcode: ' + hex(opcode))
         runCycle = False
 
-    #if opcode == 0x1228:  # i forgot why I did this
-    #    runCycle = False
     # Update timers
     if delay_timer > 0:
         delay_timer -= 1
@@ -406,13 +405,19 @@ loadGame(gameFileName) #si') #'pong') ll kt
 print(" Keys: 'p'=play/pause '['=step 'o'=print opcode 'i'=print info 'm'=print memory 't'=terminate")
 #printIndexList(memory)
 #exit()
+printRunningOps = False
 while 1:
     if (runCycle or stepCycle) :
         emulateCycle()
+        opcodePrint = memory[pc] << 8 | memory[pc + 1]
         if (stepCycle) :
             stepCycle = False
-            opcodePrint = memory[pc] << 8 | memory[pc + 1]
             print('-step- pc:' + hex(pc) + ' op:' + hex(opcodePrint) + ' desc:' + getOpcodeDesc(opcodePrint))
+        elif (printRunningOps):
+            print('-run - pc:' + hex(pc) + ' op:' + hex(opcodePrint) + ' desc:' + getOpcodeDesc(opcodePrint))
         if (drawFlag) :
             drawGraphics()
+        if (pc == pcBreakpoint) :
+            print ('Breakpoint: ' + hex(pc))
+            runCycle = False
     setKeys()
