@@ -56,12 +56,6 @@ screen = pygame.display.set_mode(size)
 def fillPixel(x, y, color):
 	screen.fill(color, pygame.Rect(x * 10, y * 10, 10, 10))
 
-def setupGraphics():
-    a = 0
-
-def setupInput():
-    a = 0
-
 def initialize():
     global pc, opcode, I, sp, memory, delay_timer, sound_timer
     # Initialize registers and memory once
@@ -406,10 +400,7 @@ def drawGraphics():
         if pixel:
             fillPixel(pixelIndex % 64, pixelIndex // 64, white)
     pygame.display.flip()
-    # print (gfx)
-    # exit()
     drawFlag = False
-    #runCycle = False
 
 def setKeys():
     global keysPressed, runCycle, stepCycle, waitForKey, waitForKeyV, V
@@ -439,17 +430,7 @@ def printIndexList(theList, perLine = 10):
             listToPrint = []
     if (len(listToPrint) >= 0):
         print(', '.join(listToPrint))
-# screen.fill(black)
-# fillPixel(0, 0, white)
-# fillPixel(1, 1, white)
-# fillPixel(63, 31, white)
-# pygame.display.flip()
 
-ball = pygame.image.load("intro_ball.gif")
-ballrect = ball.get_rect()
-
-setupGraphics()
-setupInput()
 random.seed()
 initialize()
 gameFileName = 'bmp'
@@ -465,27 +446,3 @@ while 1:
         if (drawFlag) :
             drawGraphics()
     setKeys()
-
-    # for event in pygame.event.get():
-    #     if event.type == pygame.QUIT: sys.exit()
-    #     if event.type == pygame.KEYDOWN: # or event.type == pygame.KEYUP:
-    #         print(event)
-    #         beepEffect.play()
-    #         if event.key == pygame.K_RIGHT:
-    #             speed[0] += 1
-    #         elif event.key == pygame.K_LEFT:
-    #             speed[0] -= 1
-    #         elif event.key == pygame.K_DOWN:
-    #             speed[1] += 1
-    #         elif event.key == pygame.K_UP:
-    #             speed[1] -= 1
-
-    # ballrect = ballrect.move(speed)
-    # if ballrect.left < 0 or ballrect.right > width:
-    #     speed[0] = -speed[0]
-    # if ballrect.top < 0 or ballrect.bottom > height:
-    #     speed[1] = -speed[1]
-
-    # screen.fill(black)
-    # screen.blit(ball, ballrect)
-    # pygame.display.flip()
