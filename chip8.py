@@ -369,6 +369,8 @@ def setKeys():
                 printInfo()
             if event.key == pygame.K_m:
                 printMemory()
+            if event.key == pygame.K_t:
+                sys.exit()
         if event.type == pygame.KEYUP:
             if event.key in keyMap:
                 keysPressed[keyMap[event.key]] = 0
@@ -400,6 +402,8 @@ gameFileName = 'bmp'
 if (len(sys.argv) > 1):
     gameFileName = sys.argv[1]
 loadGame(gameFileName) #si') #'pong') ll kt
+
+print(" Keys: 'p'=play/pause '['=step 'o'=print opcode 'i'=print info 'm'=print memory 't'=terminate")
 #printIndexList(memory)
 #exit()
 while 1:
