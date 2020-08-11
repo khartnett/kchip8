@@ -1,9 +1,12 @@
 import sys, pygame, random
+from os import path
 pygame.init()
 
 printRunningOps = False
-runCycle = False #initial value on start
+pcBreakpoint = 0 #0x2d6 #0x000 #0x230
+runCycle = True #initial value on start
 stepCycle = False
+
 size = width, height = 640, 320
 black = 0, 0, 0
 white = 255, 255, 255
@@ -14,7 +17,6 @@ stack = [0] * 16
 keysPressed = [0] * 16
 waitForKey = False
 waitForKeyV = 0
-pcBreakpoint = 0 #0x2d6 #0x000 #0x230
 gfx = [0] * (64 * 32)
 V = [0] * 16 # Registers
 I = 0 # Index Register
@@ -80,7 +82,10 @@ def initialize():
 
 def loadGame(gameFile):
     global memory
-    f = open(gameFile + ".ch8","rb")
+    if (path.isfile(gameFile) != True) :
+        print('File not found')
+        exit()
+    f = open(gameFile,"rb")
     gameBytes = list(f.read())
     #gameBytes = [0x60, 0x05, 0xF0, 0x29, 0x60, 0x00, 0x61, 0x00, 0xd0, 0x15, 0x12, 0x28]
 
@@ -93,9 +98,7 @@ def loadGame(gameFile):
             tempOp = firstNib << 8 | gameByte
             print(hex(i + 511) + ': ' + hex(tempOp) + ' ' + getOpcodeDesc(tempOp))
             firstNib = False
-        #print(str(i + 512) + ': ' + hex(gameByte))
     f.close()
-    #exit()
 
 def emulateCycle():
     global pc, opcode, I, V, sp, memory, stack, gfx, drawFlag, delay_timer, sound_timer, runCycle, waitForKey, waitForKeyV
@@ -399,10 +402,10 @@ def printMemory():
 
 random.seed()
 initialize()
-gameFileName = 'bmp'
+gameFileName = ''
 if (len(sys.argv) > 1):
     gameFileName = sys.argv[1]
-loadGame(gameFileName) #si') #'pong') ll kt
+loadGame(gameFileName)
 
 print(" Keys: 'p'=play/pause '['=step 'o'=print opcode 'i'=print info 'm'=print memory 't'=terminate")
 
